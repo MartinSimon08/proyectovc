@@ -1,0 +1,13 @@
+train: ../train/images
+val: ../train/images #valid  o train
+test: ../test/images
+
+nc: 2
+names: ['Auto', 'PatentesArgentina']
+
+roboflow:
+  workspace: martin-simon
+  project: patentesargentina
+  version: dataset
+  license: CC BY 4.0
+  url: https://universe.roboflow.com/martin-simon/patentesargentina/dataset/dataset
