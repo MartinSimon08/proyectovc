@@ -6,8 +6,10 @@ import re
 from fastapi import FastAPI, File, UploadFile
 from pydantic import BaseModel
 from ultralytics import YOLO
+import ultralytics
 from paddleocr import PaddleOCR
 from typing import List
+import torch
 
 # Inicializar FastAPI
 app = FastAPI(
@@ -18,6 +20,7 @@ app = FastAPI(
 
 # Cargar modelos una sola vez al iniciar el servidor
 print("--- Cargando modelos de IA ---")
+torch.serialization.add_safe_globals([ultralytics.nn.tasks.DetectionModel])
 modelo = YOLO("runs/detect/train-4/weights/best.pt")
 ocr = PaddleOCR(use_textline_orientation=True, lang='en', enable_mkldnn=False)
 print("--- Modelos cargados correctamente ---")
@@ -69,16 +72,17 @@ async def detectar_patente(file: UploadFile = File(...)):
                 if recorte.size == 0:
                     continue
 
-                resultado_ocr = ocr.predict(recorte)
-                for res in resultado_ocr:
-                    textos = res.get('rec_texts', [])
-                    scores = res.get('rec_scores', [])
-                    
-                    for texto, score in zip(textos, scores):
-                        if texto.strip():
-                            patente_valida = validar_patente(texto)
+                resultado_ocr = ocr.ocr(recorte, cls=True)
+                if resultado_ocr and resultado_ocr[0]:
+                    for linea in resultado_ocr[0]:
+                        # linea tiene la estructura: [ [[x1,y1], [x2,y2], [x3,y3], [x4,y4]], (texto, score) ]
+                        texto = linea[1][0]
+                        score = linea[1][1]
+                        
+                        if texto and str(texto).strip():
+                            patente_valida = validar_patente(str(texto))
                             if patente_valida:
-                                candidatos.append((patente_valida, score))
+                                candidatos.append((patente_valida, float(score)))
 
         if candidatos:
             mejor_texto, mejor_score = max(candidatos, key=lambda x: x[1])
@@ -146,14 +150,17 @@ async def analizar_carpeta(data: FolderRequest):
                     recorte = imagen[y1:y2, x1:x2]
                     if recorte.size == 0:
                         continue
-                        
-                    resultado_ocr = ocr.predict(recorte)
-                    for res in resultado_ocr:
-                        textos = res.get('rec_texts', [])
-                        scores = res.get('rec_scores', [])
-                        for texto, score in zip(textos, scores):
-                            if texto.strip():
-                                candidatos_imagen.append((texto, score))
+
+                    resultado_ocr = ocr.ocr(recorte, cls=True)                    
+                    if resultado_ocr and resultado_ocr[0]:
+                        for linea in resultado_ocr[0]:
+                            texto = linea[1][0]
+                            score = linea[1][1]
+                            
+                            if texto and str(texto).strip():
+                                patente_valida = validar_patente(str(texto))
+                                if patente_valida:
+                                    candidatos_imagen.append((patente_valida, float(score)))
                                 
             if candidatos_imagen:
                 validos = []
