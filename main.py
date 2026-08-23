@@ -11,14 +11,14 @@ from paddleocr import PaddleOCR
 from typing import List
 import torch
 
-# Inicializar FastAPI
+
 app = FastAPI(
     title="API de Reconocimiento de Patentes",
     description="API para detección individual y por lotes de patentes (Portfolio ML)",
     version="2.0"
 )
 
-# Cargar modelos una sola vez al iniciar el servidor
+
 print("--- Cargando modelos de IA ---")
 torch.serialization.add_safe_globals([ultralytics.nn.tasks.DetectionModel])
 modelo = YOLO("runs/detect/train-4/weights/best.pt")
@@ -75,7 +75,6 @@ async def detectar_patente(file: UploadFile = File(...)):
                 resultado_ocr = ocr.ocr(recorte, cls=True)
                 if resultado_ocr and resultado_ocr[0]:
                     for linea in resultado_ocr[0]:
-                        # linea tiene la estructura: [ [[x1,y1], [x2,y2], [x3,y3], [x4,y4]], (texto, score) ]
                         texto = linea[1][0]
                         score = linea[1][1]
                         
@@ -105,18 +104,15 @@ async def analizar_carpeta(data: FolderRequest):
     """Endpoint para procesar masivamente todas las imágenes de una carpeta en cualquier ruta"""
     ruta_carpeta = data.carpeta
     
-    # --- AQUÍ VA LA VALIDACIÓN ---
     if not os.path.exists(ruta_carpeta):
         return {"error": f"La ruta '{ruta_carpeta}' no existe o no es accesible."}
     
     if not os.path.isdir(ruta_carpeta):
         return {"error": f"La ruta '{ruta_carpeta}' no es una carpeta válida."}
-    # -----------------------------
         
     archivo_csv = "resultados_patentes.csv"
     resultados_totales = []
     
-    # Listamos solo los archivos de imagen válidos de la ruta recibida
     archivos = [f for f in sorted(os.listdir(ruta_carpeta)) 
                 if f.lower().endswith(('.png', '.jpg', '.jpeg', '.webp'))]
     
@@ -125,8 +121,6 @@ async def analizar_carpeta(data: FolderRequest):
         writer.writerow(['Imagen', 'Texto_Detectado', 'Confianza'])
         
         for nombre_archivo in archivos:
-            # ¡Ojo aquí! Como la carpeta puede estar en otra ruta, 
-            # debemos unir la ruta con el nombre del archivo para que OpenCV lo encuentre bien:
             img_path = os.path.join(ruta_carpeta, nombre_archivo)
             
             imagen = cv2.imread(img_path)
@@ -163,32 +157,19 @@ async def analizar_carpeta(data: FolderRequest):
                                     candidatos_imagen.append((patente_valida, float(score)))
                                 
             if candidatos_imagen:
-                validos = []
-                for texto, score in candidatos_imagen:
-                    patente_valida = validar_patente(texto)
-                    if patente_valida:
-                        validos.append((patente_valida, score))
-                        
-                if validos:
-                    mejor_texto, mejor_score = max(validos, key=lambda x: x[1])
-                    writer.writerow([nombre_archivo, mejor_texto, f"{mejor_score:.2f}"])
-                    resultados_totales.append({
-                        "imagen": nombre_archivo, 
-                        "patente": mejor_texto, 
-                        "confianza": round(float(mejor_score), 2)
-                    })
-                else:
-                    writer.writerow([nombre_archivo, "NO_VALIDO_REGEX", "0.00"])
-                    resultados_totales.append({
-                        "imagen": nombre_archivo, 
-                        "patente": "NO_VALIDO_REGEX", 
-                        "confianza": 0.00
-                    })
-            else:
-                writer.writerow([nombre_archivo, "NO_DETECTADO", "0.00"])
+                mejor_texto, mejor_score = max(candidatos_imagen, key=lambda x: x[1])
+                writer.writerow([nombre_archivo, mejor_texto, f"{mejor_score:.2f}"])
                 resultados_totales.append({
                     "imagen": nombre_archivo, 
-                    "patente": "NO_DETECTADO", 
+                    "patente": mejor_texto, 
+                    "confianza": round(float(mejor_score), 2)
+                })
+            else:
+
+                writer.writerow([nombre_archivo, "NO_VALIDO_REGEX", "0.00"])
+                resultados_totales.append({
+                    "imagen": nombre_archivo, 
+                    "patente": "NO_VALIDO_REGEX", 
                     "confianza": 0.00
                 })
                 

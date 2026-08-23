@@ -5,22 +5,16 @@ import re
 from ultralytics import YOLO
 from paddleocr import PaddleOCR
 
-# --- Función de Validación por Expresiones Regulares Ajustada ---
+
 def validar_patente(texto):
-    """
-    Limpia espacios, guiones y caracteres raros, y valida 
-    que tenga la longitud y estructura lógica de una patente,
-    evitando que un espacio o error menor del OCR la tire abajo.
-    """
-    # 1. Limpieza profunda: sacamos espacios, guiones y cualquier símbolo raro
+
     texto_limpio = texto.replace(" ", "").replace("-", "").replace(".", "").upper()
     
-    # 2. Las patentes argentinas válidas tienen exactamente 6 o 7 caracteres alfanuméricos
+
     if len(texto_limpio) not in [6, 7]:
         return None
         
-    # 3. Verificamos que tenga una combinación lógica de letras y números 
-    # (por lo menos alguna letra y algún número)
+
     tiene_letras = any(c.isalpha() for c in texto_limpio)
     tiene_numeros = any(c.isdigit() for c in texto_limpio)
     
